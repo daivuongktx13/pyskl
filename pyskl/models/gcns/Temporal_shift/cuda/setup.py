@@ -2,7 +2,7 @@ from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtension
 
 setup(
-    name='shiftcudatcn',
+    name='shift_cuda_linear_cpp',
     ext_modules=[
         CUDAExtension('shift_cuda', [
             'shift_cuda.cpp',
