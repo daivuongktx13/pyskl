@@ -225,8 +225,5 @@ class ShiftGCN(nn.Module):
         x = self.l10(x)
 
         # N*M,C,T,V
-        c_new = x.size(1)
-        x = x.view(N, M, c_new, -1)
-        x = x.mean(3).mean(1)
-
+        x = x.reshape((N, M) + x.shape[1:])
         return x
