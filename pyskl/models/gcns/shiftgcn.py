@@ -4,10 +4,11 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 import math
+from mmcv.runner import load_checkpoint
 
 # from .Temporal_shift.cuda.shift import Shift
 from ..builder import BACKBONES
-from ...utils import Graph
+from ...utils import Graph, cache_checkpoint
 from .utils import unit_tcn
 
 
@@ -115,7 +116,7 @@ class SHIFTGCN(nn.Module):
                  graph_cfg,
                  in_channels=3,
                  base_channels=64,
-                 data_bn_type='VC',
+                 data_bn_type='MVC',
                  ch_ratio=2,
                  num_person=2,  # * Only used when data_bn_type == 'MVC'
                  num_stages=10,
@@ -124,6 +125,8 @@ class SHIFTGCN(nn.Module):
                  pretrained=None,
                  **kwargs):
         super().__init__()
+
+        self.pretrained = pretrained
 
         self.graph = Graph(**graph_cfg)
         A = torch.tensor(self.graph.A, dtype=torch.float32, requires_grad=False)
@@ -149,6 +152,11 @@ class SHIFTGCN(nn.Module):
         self.l10 = TCN_GCN_unit(256, 256, A)
 
         bn_init(self.data_bn, 1)
+    
+    def init_weights(self):
+        if isinstance(self.pretrained, str):
+            self.pretrained = cache_checkpoint(self.pretrained)
+            load_checkpoint(self, self.pretrained, strict=False)
 
     def forward(self, x):
         N, C, T, V, M = x.size()
