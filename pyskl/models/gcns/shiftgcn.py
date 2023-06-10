@@ -5,9 +5,10 @@ from torch.autograd import Variable
 import numpy as np
 import math
 
-from .Temporal_shift.cuda.shift import Shift
+# from .Temporal_shift.cuda.shift import Shift
 from ..builder import BACKBONES
 from ...utils import Graph
+from .utils import unit_tcn
 
 
 def conv_init(conv):
@@ -18,52 +19,6 @@ def conv_init(conv):
 def bn_init(bn, scale):
     nn.init.constant(bn.weight, scale)
     nn.init.constant(bn.bias, 0)
-
-
-class tcn(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=9, stride=1):
-        super(tcn, self).__init__()
-        pad = int((kernel_size - 1) / 2)
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=(kernel_size, 1), padding=(pad, 0),
-                              stride=(stride, 1))
-
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU()
-        conv_init(self.conv)
-        bn_init(self.bn, 1)
-
-    def forward(self, x):
-        x = self.bn(self.conv(x))
-        return x
-
-
-class Shift_tcn(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=9, stride=1):
-        super(Shift_tcn, self).__init__()
-
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-
-        self.bn = nn.BatchNorm2d(in_channels)
-        self.bn2 = nn.BatchNorm2d(in_channels)
-        bn_init(self.bn2, 1)
-        self.relu = nn.ReLU(inplace=True)
-        self.shift_in = Shift(channel=in_channels, stride=1, init_scale=1)
-        self.shift_out = Shift(channel=out_channels, stride=stride, init_scale=1)
-
-        self.temporal_linear = nn.Conv2d(in_channels, out_channels, 1)
-        nn.init.kaiming_normal(self.temporal_linear.weight, mode='fan_out')
-
-    def forward(self, x):
-        x = self.bn(x)
-        # shift1
-        # x = self.shift_in(x)
-        x = self.temporal_linear(x)
-        x = self.relu(x)
-        # shift2
-        x = self.shift_out(x)
-        x = self.bn2(x)
-        return x
 
 
 class Shift_gcn(nn.Module):
@@ -115,8 +70,8 @@ class Shift_gcn(nn.Module):
         x = x0.permute(0,2,3,1).contiguous()
 
         # shift1
-        # x = x.view(n*t,v*c)
-        # x = torch.index_select(x, 1, self.shift_in)
+        x = x.view(n*t,v*c)
+        x = torch.index_select(x, 1, self.shift_in)
         x = x.view(n*t,v,c)
         x = x * (torch.tanh(self.Feature_Mask)+1)
 
@@ -125,7 +80,7 @@ class Shift_gcn(nn.Module):
 
         # shift2
         x = x.view(n*t,-1) 
-        # x = torch.index_select(x, 1, self.shift_out)
+        x = torch.index_select(x, 1, self.shift_out)
         x = self.bn(x)
         x = x.view(n,t,v,self.out_channels).permute(0,3,1,2) # n,c,t,v
 
@@ -138,7 +93,7 @@ class TCN_GCN_unit(nn.Module):
     def __init__(self, in_channels, out_channels, A, stride=1, residual=True):
         super(TCN_GCN_unit, self).__init__()
         self.gcn1 = Shift_gcn(in_channels, out_channels, A)
-        self.tcn1 = Shift_tcn(out_channels, out_channels, stride=stride)
+        self.tcn1 = unit_tcn(out_channels, out_channels, 9, stride=stride)
         self.relu = nn.ReLU()
 
         if not residual:
@@ -147,7 +102,7 @@ class TCN_GCN_unit(nn.Module):
         elif (in_channels == out_channels) and (stride == 1):
             self.residual = lambda x: x
         else:
-            self.residual = tcn(in_channels, out_channels, kernel_size=1, stride=stride)
+            self.residual = unit_tcn(in_channels, out_channels, kernel_size=1, stride=stride)
 
     def forward(self, x):
         x = self.tcn1(self.gcn1(x)) + self.residual(x)
@@ -155,14 +110,7 @@ class TCN_GCN_unit(nn.Module):
 
 @BACKBONES.register_module()
 class SHIFTGCN(nn.Module):
-    # def __init__(self, 
-    #             num_class=60, 
-    #             num_point=25, 
-    #             num_person=2, 
-    #             graph=None, 
-    #             graph_args=dict(), 
-    #             in_channels=3):
-    #     super(ShiftGCN, self).__init__()
+    
     def __init__(self,
                  graph_cfg,
                  in_channels=3,
