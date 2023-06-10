@@ -154,7 +154,7 @@ class TCN_GCN_unit(nn.Module):
         return self.relu(x)
 
 @BACKBONES.register_module()
-class ShiftGCN(nn.Module):
+class SHIFTGCN(nn.Module):
     # def __init__(self, 
     #             num_class=60, 
     #             num_point=25, 
