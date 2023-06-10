@@ -35,16 +35,18 @@ class Shift_gcn(nn.Module):
         else:
             self.down = lambda x: x
 
+        V = A.size(1)
+
         self.Linear_weight = nn.Parameter(torch.zeros(in_channels, out_channels, requires_grad=True, device='cuda'), requires_grad=True)
         nn.init.normal_(self.Linear_weight, 0,math.sqrt(1.0/out_channels))
 
         self.Linear_bias = nn.Parameter(torch.zeros(1,1,out_channels,requires_grad=True,device='cuda'),requires_grad=True)
         nn.init.constant(self.Linear_bias, 0)
 
-        self.Feature_Mask = nn.Parameter(torch.ones(1,25,in_channels, requires_grad=True,device='cuda'),requires_grad=True)
+        self.Feature_Mask = nn.Parameter(torch.ones(1,V,in_channels, requires_grad=True,device='cuda'),requires_grad=True)
         nn.init.constant(self.Feature_Mask, 0)
 
-        self.bn = nn.BatchNorm1d(25*out_channels)
+        self.bn = nn.BatchNorm1d(V*out_channels)
         self.relu = nn.ReLU()
 
         for m in self.modules():
@@ -53,24 +55,24 @@ class Shift_gcn(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 bn_init(m, 1)
 
-        index_array = np.empty(25*in_channels).astype(np.int)
-        for i in range(25):
+        index_array = np.empty(V*in_channels).astype(np.int)
+        for i in range(V):
             for j in range(in_channels):
-                index_array[i*in_channels + j] = (i*in_channels + j + j*in_channels)%(in_channels*25)
+                index_array[i*in_channels + j] = (i*in_channels + j + j*in_channels)%(in_channels*V)
         self.shift_in = nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
 
-        index_array = np.empty(25*out_channels).astype(np.int)
-        for i in range(25):
+        index_array = np.empty(V*out_channels).astype(np.int)
+        for i in range(V):
             for j in range(out_channels):
-                index_array[i*out_channels + j] = (i*out_channels + j - j*out_channels)%(out_channels*25)
-        self.shift_out = nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
-        
+                index_array[i*out_channels + j] = (i*out_channels + j - j*out_channels)%(out_channels*V)
+        self.shift_out = nn.Parameter(torch.from_numpy(index_array),requires_grad=False)        
+
 
     def forward(self, x0):
         n, c, t, v = x0.size()
         x = x0.permute(0,2,3,1).contiguous()
 
-        # shift1
+        # shift1``
         x = x.view(n*t,v*c)
         x = torch.index_select(x, 1, self.shift_in)
         x = x.view(n*t,v,c)
@@ -159,9 +161,9 @@ class SHIFTGCN(nn.Module):
             load_checkpoint(self, self.pretrained, strict=False)
 
     def forward(self, x):
-        N, C, T, V, M = x.size()
+        N, M, T, V, C = x.size()
 
-        x = x.permute(0, 4, 3, 1, 2).contiguous()
+        x = x.permute(0, 1, 3, 4, 2).contiguous() # N, M, T, V, C -> N, M, V, C, T
         if self.data_bn_type == 'MVC':
             x = self.data_bn(x.view(N, M * V * C, T))
         else:
