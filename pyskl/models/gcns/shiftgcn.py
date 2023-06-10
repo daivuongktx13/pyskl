@@ -5,7 +5,7 @@ from torch.autograd import Variable
 import numpy as np
 import math
 
-from .utils.shiftgcn import Shift
+from .Temporal_shift.cuda.shift import Shift
 from ..builder import BACKBONES
 from ...utils import Graph
 
