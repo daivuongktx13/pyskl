@@ -12,6 +12,8 @@ from ...utils import Graph, cache_checkpoint
 from .utils import unit_tcn
 
 
+from Temporal_shift.cuda.shift import Shift
+
 def conv_init(conv):
     nn.init.kaiming_normal(conv.weight, mode='fan_out')
     nn.init.constant(conv.bias, 0)
@@ -20,6 +22,34 @@ def conv_init(conv):
 def bn_init(bn, scale):
     nn.init.constant(bn.weight, scale)
     nn.init.constant(bn.bias, 0)
+
+class Shift_tcn(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=9, stride=1):
+        super(Shift_tcn, self).__init__()
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        self.bn = nn.BatchNorm2d(in_channels)
+        self.bn2 = nn.BatchNorm2d(in_channels)
+        bn_init(self.bn2, 1)
+        self.relu = nn.ReLU(inplace=True)
+        self.shift_in = Shift(channel=in_channels, stride=1, init_scale=1)
+        self.shift_out = Shift(channel=out_channels, stride=stride, init_scale=1)
+
+        self.temporal_linear = nn.Conv2d(in_channels, out_channels, 1)
+        nn.init.kaiming_normal(self.temporal_linear.weight, mode='fan_out')
+
+    def forward(self, x):
+        x = self.bn(x)
+        # shift1
+        x = self.shift_in(x)
+        x = self.temporal_linear(x)
+        x = self.relu(x)
+        # shift2
+        x = self.shift_out(x)
+        x = self.bn2(x)
+        return x
 
 
 class Shift_gcn(nn.Module):
@@ -96,7 +126,7 @@ class TCN_GCN_unit(nn.Module):
     def __init__(self, in_channels, out_channels, A, stride=1, residual=True):
         super(TCN_GCN_unit, self).__init__()
         self.gcn1 = Shift_gcn(in_channels, out_channels, A)
-        self.tcn1 = unit_tcn(out_channels, out_channels, 9, stride=stride)
+        self.tcn1 = Shift_tcn(out_channels, out_channels, stride=stride)
         self.relu = nn.ReLU()
 
         if not residual:
