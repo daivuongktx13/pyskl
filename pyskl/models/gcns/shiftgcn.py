@@ -12,7 +12,7 @@ from ...utils import Graph, cache_checkpoint
 from .utils import unit_tcn
 
 
-from Temporal_shift.cuda.shift import Shift
+from .Temporal_shift.cuda.shift import Shift
 
 def conv_init(conv):
     nn.init.kaiming_normal(conv.weight, mode='fan_out')
