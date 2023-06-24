@@ -1,8 +1,9 @@
 model = dict(
     type='RecognizerGCN',
     backbone=dict(
-        type='STGCN',
-        graph_cfg=dict(layout='nturgb+d', mode='stgcn_spatial')),
+        type='SHIFTGCN',
+        graph_cfg=dict(layout='nturgb+d', mode='spatial'),
+        spatial_shift_graph='global'),
     cls_head=dict(type='GCNHead', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
@@ -46,7 +47,7 @@ data = dict(
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xview_val'))
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0005, nesterov=True)
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -57,4 +58,4 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/stgcn/stgcn_pyskl_ntu60_xview_3dkp/j'
+work_dir = './work_dirs/shiftgcn/shiftgcn_pyskl_ntu60_xview_3dkp/j'
