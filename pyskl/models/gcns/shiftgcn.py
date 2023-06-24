@@ -12,6 +12,47 @@ from ...utils import Graph, cache_checkpoint
 from .utils import unit_tcn
 
 
+
+def get_global_shift_graph(V, channels):
+    index_array = np.empty(V*channels).astype(np.int)
+    for i in range(V):
+        for j in range(channels):
+            channels[i*channels + j] = (i*channels + j - j*channels)%(channels*V)
+    return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)   
+
+def get_global_shift_graph_v2(V, channels):
+    if channels == 3:
+        return nn.Parameter(torch.arange(V * channels),requires_grad=False)
+       
+    index_array = np.empty(V*channels).astype(np.int)
+    for i in range(V):
+        for j in range(channels):
+            channels[i*channels + j] = (i*channels + j - j*channels)%(channels*V)
+    return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)   
+
+def get_half_shift_graph(V, channels):
+    if channels == 3:
+        return nn.Parameter(torch.arange(V * channels),requires_grad=False)
+    
+    index_array = np.empty(V*channels).astype(np.int)
+    num_keep_features = channels - channels // V // 2 * 25
+    for i in range(V):
+        for j in range(channels):
+            if j > channels - num_keep_features:
+                index_array[i*channels + j] = i*channels + j
+                continue
+            index_array[i*channels + j] = (i*channels + j + j*channels)%(channels*V)
+    return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
+
+def get_shift_graph(V, in_channels, out_channels, strategy = 'global'):
+    if strategy == 'global':
+        return get_global_shift_graph(V, in_channels), get_global_shift_graph(V, out_channels)
+    elif strategy == 'global_v2': 
+        return get_global_shift_graph_v2(V, in_channels), get_global_shift_graph_v2(V, out_channels)
+    elif strategy == 'half':
+        return get_half_shift_graph(V, in_channels), get_half_shift_graph(V, out_channels)
+
+
 from .Temporal_shift.cuda.shift import Shift
 
 def conv_init(conv):
@@ -123,9 +164,9 @@ class Shift_gcn(nn.Module):
 
 
 class TCN_GCN_unit(nn.Module):
-    def __init__(self, in_channels, out_channels, A, stride=1, residual=True):
+    def __init__(self, in_channels, out_channels, A, spatial_shift_graph, stride=1, residual=True):
         super(TCN_GCN_unit, self).__init__()
-        self.gcn1 = Shift_gcn(in_channels, out_channels, A)
+        self.gcn1 = Shift_gcn(in_channels, out_channels, A, spatial_shift_graph)
         self.tcn1 = Shift_tcn(out_channels, out_channels, stride=stride)
         self.relu = nn.ReLU()
 
@@ -155,6 +196,7 @@ class SHIFTGCN(nn.Module):
                  inflate_stages=[5, 8],
                  down_stages=[5, 8],
                  pretrained=None,
+                 spatial_shift_graph='global',
                  **kwargs):
         super().__init__()
 
@@ -172,16 +214,16 @@ class SHIFTGCN(nn.Module):
         else:
             self.data_bn = nn.Identity()
 
-        self.l1 = TCN_GCN_unit(3, 64, A, residual=False)
-        self.l2 = TCN_GCN_unit(64, 64, A)
-        self.l3 = TCN_GCN_unit(64, 64, A)
-        self.l4 = TCN_GCN_unit(64, 64, A)
-        self.l5 = TCN_GCN_unit(64, 128, A, stride=2)
-        self.l6 = TCN_GCN_unit(128, 128, A)
-        self.l7 = TCN_GCN_unit(128, 128, A)
-        self.l8 = TCN_GCN_unit(128, 256, A, stride=2)
-        self.l9 = TCN_GCN_unit(256, 256, A)
-        self.l10 = TCN_GCN_unit(256, 256, A)
+        self.l1 = TCN_GCN_unit(3, 64, A, spatial_shift_graph, residual=False)
+        self.l2 = TCN_GCN_unit(64, 64, A, spatial_shift_graph)
+        self.l3 = TCN_GCN_unit(64, 64, A, spatial_shift_graph)
+        self.l4 = TCN_GCN_unit(64, 64, A, spatial_shift_graph)
+        self.l5 = TCN_GCN_unit(64, 128, A, spatial_shift_graph, stride=2)
+        self.l6 = TCN_GCN_unit(128, 128, A, spatial_shift_graph)
+        self.l7 = TCN_GCN_unit(128, 128, A, spatial_shift_graph)
+        self.l8 = TCN_GCN_unit(128, 256, A, spatial_shift_graph, stride=2)
+        self.l9 = TCN_GCN_unit(256, 256, A, spatial_shift_graph)
+        self.l10 = TCN_GCN_unit(256, 256, A, spatial_shift_graph)
 
         bn_init(self.data_bn, 1)
     
