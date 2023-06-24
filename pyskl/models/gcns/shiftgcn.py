@@ -17,7 +17,7 @@ def get_global_shift_graph(V, channels):
     index_array = np.empty(V*channels).astype(np.int)
     for i in range(V):
         for j in range(channels):
-            channels[i*channels + j] = (i*channels + j - j*channels)%(channels*V)
+            index_array[i*channels + j] = (i*channels + j - j*channels)%(channels*V)
     return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)   
 
 def get_global_shift_graph_v2(V, channels):
@@ -27,7 +27,7 @@ def get_global_shift_graph_v2(V, channels):
     index_array = np.empty(V*channels).astype(np.int)
     for i in range(V):
         for j in range(channels):
-            channels[i*channels + j] = (i*channels + j - j*channels)%(channels*V)
+            index_array[i*channels + j] = (i*channels + j - j*channels)%(channels*V)
     return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)   
 
 def get_half_shift_graph(V, channels):
