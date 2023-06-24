@@ -94,7 +94,7 @@ class Shift_tcn(nn.Module):
 
 
 class Shift_gcn(nn.Module):
-    def __init__(self, in_channels, out_channels, A, coff_embedding=4, num_subset=3):
+    def __init__(self, in_channels, out_channels, A, spatial_shift_graph, coff_embedding=4, num_subset=3):
         super(Shift_gcn, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -126,17 +126,7 @@ class Shift_gcn(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 bn_init(m, 1)
 
-        index_array = np.empty(V*in_channels).astype(np.int)
-        for i in range(V):
-            for j in range(in_channels):
-                index_array[i*in_channels + j] = (i*in_channels + j + j*in_channels)%(in_channels*V)
-        self.shift_in = nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
-
-        index_array = np.empty(V*out_channels).astype(np.int)
-        for i in range(V):
-            for j in range(out_channels):
-                index_array[i*out_channels + j] = (i*out_channels + j - j*out_channels)%(out_channels*V)
-        self.shift_out = nn.Parameter(torch.from_numpy(index_array),requires_grad=False)        
+        self.shift_in, self.shift_out = get_shift_graph(V, in_channels, out_channels, spatial_shift_graph)
 
 
     def forward(self, x0):
