@@ -3,7 +3,7 @@ model = dict(
     backbone=dict(
         type='SHIFTGCN',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
-        spatial_shift_graph='global'),
+        spatial_shift_graph='half'),
     cls_head=dict(type='GCNHead', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
