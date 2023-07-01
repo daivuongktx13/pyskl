@@ -44,6 +44,9 @@ def get_half_shift_graph(V, channels):
             index_array[i*channels + j] = (i*channels + j + j*channels)%(channels*V)
     return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
 
+def get_no_shift_graph(V, channels):
+    return nn.Parameter(torch.arange(V * channels),requires_grad=False)
+
 def get_shift_graph(V, in_channels, out_channels, strategy = 'global'):
     if strategy == 'global':
         return get_global_shift_graph(V, in_channels), get_global_shift_graph(V, out_channels)
@@ -51,6 +54,8 @@ def get_shift_graph(V, in_channels, out_channels, strategy = 'global'):
         return get_global_shift_graph_v2(V, in_channels), get_global_shift_graph_v2(V, out_channels)
     elif strategy == 'half':
         return get_half_shift_graph(V, in_channels), get_half_shift_graph(V, out_channels)
+    elif strategy == 'no_shift':
+        return get_no_shift_graph(V, in_channels), get_no_shift_graph(V, out_channels)
 
 
 from .Temporal_shift.cuda.shift import Shift
