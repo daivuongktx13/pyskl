@@ -2,7 +2,8 @@ model = dict(
     type='RecognizerGCN',
     backbone=dict(
         type='SHIFTGCN',
-        graph_cfg=dict(layout='nturgb+d', mode='spatial')),
+        graph_cfg=dict(layout='nturgb+d', mode='spatial'),
+        spatial_shift_graph='no_shift'),
     cls_head=dict(type='GCNHead', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
@@ -46,7 +47,7 @@ data = dict(
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0005, nesterov=True)
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
