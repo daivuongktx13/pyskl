@@ -3,7 +3,7 @@ model = dict(
     backbone=dict(
         type='SHIFTGCN',
         graph_cfg=dict(layout='nturgb+d', mode='spatial'),
-        spatial_shift_graph='no_shift'),
+        spatial_shift_graph='quarter'),
     cls_head=dict(type='GCNHead', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
@@ -51,7 +51,7 @@ optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nestero
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
-total_epochs = 16
+total_epochs = 28
 checkpoint_config = dict(interval=1)
 evaluation = dict(interval=1, metrics=['top_k_accuracy'])
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
