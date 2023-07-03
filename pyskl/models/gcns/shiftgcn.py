@@ -73,6 +73,20 @@ def get_quarter_shift_graph(V, channels):
             index_array[i*channels + j] = (i*channels + j + j*channels)%(channels*V)
     return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
 
+def get_threefouths_shift_graph(V, channels):
+    if channels == 3:
+        return nn.Parameter(torch.arange(V * channels),requires_grad=False)
+    
+    index_array = np.empty(V*channels).astype(np.int)
+    num_keep_features = half_quarter_map[channels]
+    for i in range(V):
+        for j in range(channels):
+            if j > channels - num_keep_features:
+                index_array[i*channels + j] = i*channels + j
+                continue
+            index_array[i*channels + j] = (i*channels + j + j*channels)%(channels*V)
+    return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
+
 def get_shift_graph(V, in_channels, out_channels, strategy = 'global'):
     if strategy == 'global':
         return get_global_shift_graph(V, in_channels), get_global_shift_graph(V, out_channels)
@@ -84,6 +98,8 @@ def get_shift_graph(V, in_channels, out_channels, strategy = 'global'):
         return get_no_shift_graph(V, in_channels), get_no_shift_graph(V, out_channels)
     elif strategy == 'quarter':
         return get_quarter_shift_graph(V, in_channels), get_quarter_shift_graph(V, out_channels)
+    elif strategy == 'three_fouths':
+        return get_threefouths_shift_graph(V, in_channels), get_threefouths_shift_graph(V, out_channels)
 
 
 from .Temporal_shift.cuda.shift import Shift
