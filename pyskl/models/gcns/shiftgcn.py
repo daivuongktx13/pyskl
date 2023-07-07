@@ -9,7 +9,7 @@ from mmcv.runner import load_checkpoint
 # from .Temporal_shift.cuda.shift import Shift
 from ..builder import BACKBONES
 from ...utils import Graph, cache_checkpoint
-from .utils import unit_tcn
+from .utils import unit_tcn, mstcn
 
 
 
@@ -87,6 +87,26 @@ def get_threefouths_shift_graph(V, channels):
             index_array[i*channels + j] = (i*channels + j + j*channels)%(channels*V)
     return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
 
+low_high_map = {
+    64: 25,
+    128: 125,
+    256: 250
+}
+
+def get_low_high_shift_graph(V, channels):
+    if channels == 3:
+        return nn.Parameter(torch.arange(V * channels),requires_grad=False)
+    
+    index_array = np.empty(V*channels).astype(np.int)
+    num_keep_features = low_high_map[channels]
+    for i in range(V):
+        for j in range(channels):
+            if j > channels - num_keep_features:
+                index_array[i*channels + j] = i*channels + j
+                continue
+            index_array[i*channels + j] = (i*channels + j + j*channels)%(channels*V)
+    return nn.Parameter(torch.from_numpy(index_array),requires_grad=False)
+
 def get_shift_graph(V, in_channels, out_channels, strategy = 'global'):
     if strategy == 'global':
         return get_global_shift_graph(V, in_channels), get_global_shift_graph(V, out_channels)
@@ -100,7 +120,8 @@ def get_shift_graph(V, in_channels, out_channels, strategy = 'global'):
         return get_quarter_shift_graph(V, in_channels), get_quarter_shift_graph(V, out_channels)
     elif strategy == 'three_fouths':
         return get_threefouths_shift_graph(V, in_channels), get_threefouths_shift_graph(V, out_channels)
-
+    elif strategy == 'low_high':
+        return get_low_high_shift_graph(V, in_channels), get_low_high_shift_graph(V, out_channels) 
 
 from .Temporal_shift.cuda.shift import Shift
 
@@ -206,7 +227,7 @@ class TCN_GCN_unit(nn.Module):
     def __init__(self, in_channels, out_channels, A, spatial_shift_graph, stride=1, residual=True):
         super(TCN_GCN_unit, self).__init__()
         self.gcn1 = Shift_gcn(in_channels, out_channels, A, spatial_shift_graph)
-        self.tcn1 = Shift_tcn(out_channels, out_channels, stride=stride)
+        self.tcn1 = mstcn(out_channels, out_channels, stride=stride)
         self.relu = nn.ReLU()
 
         if not residual:
