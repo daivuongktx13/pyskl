@@ -154,6 +154,7 @@ class Shift_mstcn(nn.Module):
         self.bn2 = nn.BatchNorm2d(in_channels)
         bn_init(self.bn2, 1)
         self.relu = nn.ReLU(inplace=True)
+        self.act = nn.ReLU()
 
         num_branches = len(ms_cfg)
         in_mid_channels = in_channels // num_branches
@@ -165,12 +166,20 @@ class Shift_mstcn(nn.Module):
         in_branches = []
         for i, cfg in enumerate(ms_cfg):
             branch_c = in_rem_mid_channels if i == 0 else in_mid_channels
-            in_branches.append(Shift(channel=branch_c, stride=1, init_scale=cfg[i]))
+            in_branches.append(
+                nn.Sequential(
+                    nn.Conv2d(in_channels, branch_c, kernel_size=1), nn.BatchNorm2d(branch_c), self.act,
+                    Shift(channel=branch_c, stride=1, init_scale=cfg))
+            )
 
         out_branches = []
         for i, cfg in enumerate(ms_cfg):
             branch_c = out_rem_mid_channels if i == 0 else out_mid_channels
-            out_branches.append(Shift(channel=branch_c, stride=stride, init_scale=cfg[i]))
+            out_branches.append(
+                nn.Sequential(
+                    nn.Conv2d(out_channels, branch_c, kernel_size=1), nn.BatchNorm2d(branch_c), self.act,
+                    Shift(channel=branch_c, stride=stride, init_scale=cfg))
+            )
         
         self.in_branches = nn.ModuleList(in_branches)
         self.out_branches = nn.ModuleList(out_branches)
