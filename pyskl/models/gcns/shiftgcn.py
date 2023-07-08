@@ -140,6 +140,64 @@ class Shift_tcn(nn.Module):
         x = self.shift_out(x)
         x = self.bn2(x)
         return x
+    
+class Shift_mstcn(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=9, 
+            stride=1,
+            ms_cfg=[1, 3, 5]):
+        super(Shift_mstcn, self).__init__()
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        self.bn = nn.BatchNorm2d(in_channels)
+        self.bn2 = nn.BatchNorm2d(in_channels)
+        bn_init(self.bn2, 1)
+        self.relu = nn.ReLU(inplace=True)
+
+        num_branches = len(ms_cfg)
+        in_mid_channels = in_channels // num_branches
+        in_rem_mid_channels = in_channels - in_mid_channels * (num_branches - 1)
+
+        out_mid_channels = out_channels // num_branches
+        out_rem_mid_channels = out_channels - out_mid_channels * (num_branches - 1)
+
+        in_branches = []
+        for i, cfg in enumerate(ms_cfg):
+            branch_c = in_rem_mid_channels if i == 0 else in_mid_channels
+            in_branches.append(Shift(channel=branch_c, stride=1, init_scale=cfg[i]))
+
+        out_branches = []
+        for i, cfg in enumerate(ms_cfg):
+            branch_c = out_rem_mid_channels if i == 0 else out_mid_channels
+            out_branches.append(Shift(channel=branch_c, stride=stride, init_scale=cfg[i]))
+        
+        self.in_branches = nn.ModuleList(in_branches)
+        self.out_branches = nn.ModuleList(out_branches)
+
+        self.temporal_linear = nn.Conv2d(in_channels, out_channels, 1)
+        nn.init.kaiming_normal(self.temporal_linear.weight, mode='fan_out')
+
+    def forward(self, x):
+        x = self.bn(x)
+        # shift1
+        outs = []
+        for shift_branch in self.in_branches:
+            out = shift_branch(x)
+            outs.append(out)
+        x = torch.cat(outs, dim=1)
+
+        x = self.temporal_linear(x)
+        x = self.relu(x)
+        # shift2
+        outs = []
+        for shift_branch in self.out_branches:
+            out = shift_branch(x)
+            outs.append(out)
+        x = torch.cat(outs, dim=1)
+
+        x = self.bn2(x)
+        return x
 
 
 class Shift_gcn(nn.Module):
@@ -206,7 +264,7 @@ class TCN_GCN_unit(nn.Module):
     def __init__(self, in_channels, out_channels, A, spatial_shift_graph, stride=1, residual=True):
         super(TCN_GCN_unit, self).__init__()
         self.gcn1 = Shift_gcn(in_channels, out_channels, A, spatial_shift_graph)
-        self.tcn1 = Shift_tcn(out_channels, out_channels, stride=stride)
+        self.tcn1 = Shift_mstcn(out_channels, out_channels, stride=stride)
         self.relu = nn.ReLU()
 
         if not residual:
