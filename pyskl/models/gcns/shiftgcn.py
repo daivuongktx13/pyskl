@@ -157,56 +157,36 @@ class Shift_mstcn(nn.Module):
         self.act = nn.ReLU()
 
         num_branches = len(ms_cfg)
-        in_mid_channels = in_channels // num_branches
-        in_rem_mid_channels = in_channels - in_mid_channels * (num_branches - 1)
-
-        out_mid_channels = out_channels // num_branches
-        out_rem_mid_channels = out_channels - out_mid_channels * (num_branches - 1)
+        mid_channels = in_channels // num_branches
+        rem_mid_channels = in_channels - mid_channels * (num_branches - 1)
 
         in_branches = []
         for i, cfg in enumerate(ms_cfg):
-            branch_c = in_rem_mid_channels if i == 0 else in_mid_channels
+            branch_c = rem_mid_channels if i == 0 else mid_channels
             in_branches.append(
                 nn.Sequential(
                     nn.Conv2d(in_channels, branch_c, kernel_size=1), nn.BatchNorm2d(branch_c), self.act,
-                    Shift(channel=branch_c, stride=1, init_scale=cfg))
+                    Shift(channel=branch_c, stride=1, init_scale=cfg), 
+                    nn.Conv2d(branch_c, branch_c, 1), self.act)
             )
 
-        out_branches = []
-        for i, cfg in enumerate(ms_cfg):
-            branch_c = out_rem_mid_channels if i == 0 else out_mid_channels
-            out_branches.append(
-                nn.Sequential(
-                    nn.Conv2d(out_channels, branch_c, kernel_size=1), nn.BatchNorm2d(branch_c), self.act,
-                    Shift(channel=branch_c, stride=stride, init_scale=cfg))
-            )
+        tin_channels = mid_channels * (num_branches - 1) + rem_mid_channels
+
+        self.transform = nn.Sequential(
+            nn.BatchNorm2d(tin_channels), self.act, nn.Conv2d(tin_channels, out_channels, kernel_size=1))
         
-        self.in_branches = nn.ModuleList(in_branches)
-        self.out_branches = nn.ModuleList(out_branches)
-
-        self.temporal_linear = nn.Conv2d(in_channels, out_channels, 1)
-        nn.init.kaiming_normal(self.temporal_linear.weight, mode='fan_out')
+        self.branches = nn.ModuleList(in_branches)
 
     def forward(self, x):
         x = self.bn(x)
         # shift1
         outs = []
-        for shift_branch in self.in_branches:
+        for shift_branch in self.branches:
             out = shift_branch(x)
             outs.append(out)
         x = torch.cat(outs, dim=1)
-        x = self.bn2(x)
-
-        x = self.temporal_linear(x)
-        x = self.bn3(x)
-        x = self.act(x)
-        # shift2
-        outs = []
-        for shift_branch in self.out_branches:
-            out = shift_branch(x)
-            outs.append(out)
-        x = torch.cat(outs, dim=1)
-        x = self.bn4(x)
+    
+        x = self.transform(x)
         return x
 
 
