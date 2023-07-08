@@ -152,8 +152,8 @@ class Shift_mstcn(nn.Module):
 
         self.bn = nn.BatchNorm2d(in_channels)
         self.bn2 = nn.BatchNorm2d(in_channels)
-        bn_init(self.bn2, 1)
-        self.relu = nn.ReLU(inplace=True)
+        self.bn3 = nn.BatchNorm2d(out_channels)
+        self.bn4 = nn.BatchNorm2d(out_channels)
         self.act = nn.ReLU()
 
         num_branches = len(ms_cfg)
@@ -195,17 +195,18 @@ class Shift_mstcn(nn.Module):
             out = shift_branch(x)
             outs.append(out)
         x = torch.cat(outs, dim=1)
+        x = self.bn2(x)
 
         x = self.temporal_linear(x)
-        x = self.relu(x)
+        x = self.bn3(x)
+        x = self.act(x)
         # shift2
         outs = []
         for shift_branch in self.out_branches:
             out = shift_branch(x)
             outs.append(out)
         x = torch.cat(outs, dim=1)
-
-        x = self.bn2(x)
+        x = self.bn4(x)
         return x
 
 
