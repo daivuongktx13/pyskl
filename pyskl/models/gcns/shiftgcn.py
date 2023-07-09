@@ -113,6 +113,23 @@ def bn_init(bn, scale):
     nn.init.constant(bn.weight, scale)
     nn.init.constant(bn.bias, 0)
 
+class TemporalShiftModule(nn.Module):
+    def __init__(self, channel=64, n_div=8, stride = 1) -> None:
+        super().__init__()
+        self.channel = channel
+        self.fold_div = n_div
+        self.stride = stride
+
+    def forward(self, x):
+        fold = self.channel // self.fold_div
+        out = torch.zeros_like(x)
+        # N x C x T x V
+        out[:, :fold, :-1] = x[:, :fold, 1:]  # shift left
+        out[:, fold: 2 * fold, 1:] = x[:, fold: 2 * fold, :-1]  # shift right
+        out[:, 2 * fold:, :] = x[:, 2 * fold:, :]  # not shift
+        out = out[:, :, ::self.stride]
+        return out
+
 class Shift_tcn(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=9, stride=1):
         super(Shift_tcn, self).__init__()
@@ -124,8 +141,8 @@ class Shift_tcn(nn.Module):
         self.bn2 = nn.BatchNorm2d(in_channels)
         bn_init(self.bn2, 1)
         self.relu = nn.ReLU(inplace=True)
-        self.shift_in = Shift(channel=in_channels, stride=1, init_scale=1)
-        self.shift_out = Shift(channel=out_channels, stride=stride, init_scale=1)
+        self.shift_in = TemporalShiftModule(channel=in_channels, stride=1)
+        self.shift_out = TemporalShiftModule(channel=out_channels, stride=stride)
 
         self.temporal_linear = nn.Conv2d(in_channels, out_channels, 1)
         nn.init.kaiming_normal(self.temporal_linear.weight, mode='fan_out')
