@@ -166,7 +166,7 @@ class Shift_mstcn(nn.Module):
             in_branches.append(
                 nn.Sequential(
                     nn.Conv2d(in_channels, branch_c, kernel_size=1), nn.BatchNorm2d(branch_c), self.act,
-                    Shift(channel=branch_c, stride=1, init_scale=cfg), 
+                    Shift(channel=branch_c, stride=stride, init_scale=cfg), 
                     nn.Conv2d(branch_c, branch_c, 1), self.act)
             )
 
