@@ -114,7 +114,7 @@ def bn_init(bn, scale):
     nn.init.constant(bn.bias, 0)
 
 class TemporalShiftModule(nn.Module):
-    def __init__(self, channel=64, n_div=8, stride = 1) -> None:
+    def __init__(self, channel=64, n_div=4, stride = 1) -> None:
         super().__init__()
         self.channel = channel
         self.fold_div = n_div
