@@ -54,7 +54,7 @@ quarter_map = {
 }
 
 half_quarter_map = {
-    64: 25,
+    64: 50,
     128: 75,
     256: 175
 }
