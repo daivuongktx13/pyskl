@@ -114,47 +114,70 @@ def bn_init(bn, scale):
     nn.init.constant(bn.bias, 0)
 
 class TemporalShiftModule(nn.Module):
-    def __init__(self, channel=64, n_div=4, stride = 1) -> None:
+    def __init__(self, channel=64, n_div=4, stride = 1, scale = 1) -> None:
         super().__init__()
         self.channel = channel
         self.fold_div = n_div
+        self.scale = scale
         self.stride = stride
 
     def forward(self, x):
         fold = self.channel // self.fold_div
+        scale = self.scale
         out = torch.zeros_like(x)
         # N x C x T x V
-        out[:, :fold, :-1] = x[:, :fold, 1:]  # shift left
-        out[:, fold: 2 * fold, 1:] = x[:, fold: 2 * fold, :-1]  # shift right
+        out[:, :fold, :-scale] = x[:, :fold, scale:]  # shift left
+        out[:, fold: 2 * fold, scale:] = x[:, fold: 2 * fold, :-scale]  # shift right
         out[:, 2 * fold:, :] = x[:, 2 * fold:, :]  # not shift
         out = out[:, :, ::self.stride]
         return out
 
 class Shift_tcn(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=9, stride=1):
+    def __init__(self, in_channels, out_channels, kernel_size=9, stride=1, mstsm_cfg = [1, 2, 3]):
         super(Shift_tcn, self).__init__()
 
         self.in_channels = in_channels
         self.out_channels = out_channels
 
+        num_branches = len(mstsm_cfg)
+        self.num_branches = num_branches
+        self.act = nn.ReLU()
+
+        mid_channels = out_channels // num_branches
+        rem_mid_channels = out_channels - mid_channels * (num_branches - 1)
+        self.mid_channels = mid_channels
+        self.rem_mid_channels = rem_mid_channels
+
+        branches = []
+        for i, cfg in enumerate(mstsm_cfg):
+            branch_c = rem_mid_channels if i == 0 else mid_channels
+            branch = nn.Sequential(
+                nn.Conv2d(in_channels, branch_c, kernel_size=1), nn.BatchNorm2d(branch_c), self.act,
+                TemporalShiftModule(channel=branch_c, stride=stride, scale=cfg),
+                nn.Conv2d(branch_c, branch_c, 1))
+            branches.append(branch)
+
+        self.branches = nn.ModuleList(branches)
+        tin_channels = mid_channels * (num_branches - 1) + rem_mid_channels
+
+        self.transform = nn.Sequential(
+            nn.BatchNorm2d(tin_channels), self.act, nn.Conv2d(tin_channels, out_channels, kernel_size=1))
+
         self.bn = nn.BatchNorm2d(in_channels)
         self.bn2 = nn.BatchNorm2d(in_channels)
         bn_init(self.bn2, 1)
-        self.relu = nn.ReLU(inplace=True)
-        self.shift_in = TemporalShiftModule(channel=in_channels, stride=1)
-        self.shift_out = TemporalShiftModule(channel=out_channels, stride=stride)
-
-        self.temporal_linear = nn.Conv2d(in_channels, out_channels, 1)
-        nn.init.kaiming_normal(self.temporal_linear.weight, mode='fan_out')
 
     def forward(self, x):
         x = self.bn(x)
         # shift1
-        x = self.shift_in(x)
-        x = self.temporal_linear(x)
-        x = self.relu(x)
-        # shift2
-        x = self.shift_out(x)
+        branch_outs = []
+        for tempconv in self.branches:
+            out = tempconv(x)
+            branch_outs.append(out)
+        feat = torch.cat(branch_outs, dim=1)
+
+        x = self.transform(feat)
+
         x = self.bn2(x)
         return x
 
