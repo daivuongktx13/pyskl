@@ -141,8 +141,7 @@ class Shift_tcn(nn.Module):
         self.bn2 = nn.BatchNorm2d(in_channels)
         bn_init(self.bn2, 1)
         self.relu = nn.ReLU(inplace=True)
-        self.shift_in = TemporalShiftModule(channel=in_channels, stride=1)
-        self.shift_out = TemporalShiftModule(channel=out_channels, stride=stride)
+        self.shift_in = TemporalShiftModule(channel=in_channels, stride=stride)
 
         self.temporal_linear = nn.Conv2d(in_channels, out_channels, 1)
         nn.init.kaiming_normal(self.temporal_linear.weight, mode='fan_out')
@@ -154,7 +153,6 @@ class Shift_tcn(nn.Module):
         x = self.temporal_linear(x)
         x = self.relu(x)
         # shift2
-        x = self.shift_out(x)
         x = self.bn2(x)
         return x
 
