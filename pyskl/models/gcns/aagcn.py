@@ -5,7 +5,7 @@ from mmcv.runner import load_checkpoint
 
 from ...utils import Graph, cache_checkpoint
 from ..builder import BACKBONES
-from .utils import bn_init, mstcn, unit_aagcn, unit_tcn
+from .utils import bn_init, mstcn, unit_aagcn, unit_tcn, unit_aagcnconv, unit_aagcn_aha
 
 
 class AAGCNBlock(nn.Module):

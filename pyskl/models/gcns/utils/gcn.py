@@ -3,6 +3,7 @@ import torch.nn as nn
 from mmcv.cnn import build_activation_layer, build_norm_layer
 
 from .init_func import bn_init, conv_branch_init, conv_init
+from .hdgcn import AHA
 
 EPS = 1e-4
 
@@ -197,6 +198,141 @@ class unit_aagcn(nn.Module):
             # A little bit weird
         return y
 
+class unit_aagcnconv(nn.Module):
+    def __init__(self, in_channels, out_channels, A, coff_embedding=4, adaptive=True, attention=True):
+        super(unit_aagcnconv, self).__init__()
+        inter_channels = out_channels // coff_embedding
+        self.inter_c = inter_channels
+        self.out_c = out_channels
+        self.in_c = in_channels
+        self.num_subset = A.shape[0]
+
+        num_joints = A.shape[-1]
+
+        self.conv_d = nn.ModuleList()
+        for i in range(self.num_subset):
+            self.conv_d.append(nn.Conv2d(in_channels, out_channels, 1))
+
+        self.A = nn.Parameter(A)
+
+        self.alpha = nn.Parameter(torch.zeros(1))
+        self.conv_a = nn.ModuleList()
+        self.conv_b = nn.ModuleList()
+        for i in range(self.num_subset):
+            self.conv_a.append(nn.Conv2d(in_channels, inter_channels, 1))
+            self.conv_b.append(nn.Conv2d(in_channels, inter_channels, 1))
+
+        self.aggregate = nn.Conv2d(out_channels * self.num_subset, out_channels, kernel_size=1)
+
+        self.down = lambda x: x
+        if in_channels != out_channels:
+            self.down = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, 1),
+                nn.BatchNorm2d(out_channels)
+            )
+
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.tan = nn.Tanh()
+        self.sigmoid = nn.Sigmoid()
+        self.relu = nn.ReLU(inplace=True)
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                conv_init(m)
+            elif isinstance(m, nn.BatchNorm2d):
+                bn_init(m, 1)
+        bn_init(self.bn, 1e-6)
+        for i in range(self.num_subset):
+            conv_branch_init(self.conv_d[i], self.num_subset)
+
+    def forward(self, x):
+        N, C, T, V = x.size()
+
+        out = []
+
+        for i in range(self.num_subset):
+            A1 = self.conv_a[i](x).permute(0, 3, 1, 2).contiguous().view(N, V, self.inter_c * T)
+            A2 = self.conv_b[i](x).view(N, self.inter_c * T, V)
+            A1 = self.tan(torch.matmul(A1, A2) / A1.size(-1))  # N V V
+            A1 = self.A[i] + A1 * self.alpha
+            A2 = x.view(N, C * T, V)
+            z = self.conv_d[i](torch.matmul(A2, A1).view(N, C, T, V)) # N C T V
+            out.append(z)
+        
+        out = torch.cat(out, dim=1)
+        y = self.aggregate(out)
+
+        y = self.relu(self.bn(y) + self.down(x))
+        return y
+
+class unit_aagcn_aha(nn.Module):
+    def __init__(self, in_channels, out_channels, A, coff_embedding=4, adaptive=True, attention=True):
+        super(unit_aagcn_aha, self).__init__()
+        inter_channels = out_channels // coff_embedding
+        self.inter_c = inter_channels
+        self.out_c = out_channels
+        self.in_c = in_channels
+        self.num_subset = A.shape[0]
+
+        num_joints = A.shape[-1]
+
+        self.conv_d = nn.ModuleList()
+        for i in range(self.num_subset):
+            self.conv_d.append(nn.Conv2d(in_channels, out_channels, 1))
+
+        self.A = nn.Parameter(A)
+
+        self.alpha = nn.Parameter(torch.zeros(1))
+        self.conv_a = nn.ModuleList()
+        self.conv_b = nn.ModuleList()
+        for i in range(self.num_subset):
+            self.conv_a.append(nn.Conv2d(in_channels, inter_channels, 1))
+            self.conv_b.append(nn.Conv2d(in_channels, inter_channels, 1))
+
+        self.aha = AHA(out_channels, self.num_subset)
+
+        self.down = lambda x: x
+        if in_channels != out_channels:
+            self.down = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, 1),
+                nn.BatchNorm2d(out_channels)
+            )
+
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.tan = nn.Tanh()
+        self.sigmoid = nn.Sigmoid()
+        self.relu = nn.ReLU(inplace=True)
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                conv_init(m)
+            elif isinstance(m, nn.BatchNorm2d):
+                bn_init(m, 1)
+        bn_init(self.bn, 1e-6)
+        for i in range(self.num_subset):
+            conv_branch_init(self.conv_d[i], self.num_subset)
+
+    def forward(self, x):
+        N, C, T, V = x.size()
+
+        out = []
+
+        for i in range(self.num_subset):
+            A1 = self.conv_a[i](x).permute(0, 3, 1, 2).contiguous().view(N, V, self.inter_c * T)
+            A2 = self.conv_b[i](x).view(N, self.inter_c * T, V)
+            A1 = self.tan(torch.matmul(A1, A2) / A1.size(-1))  # N V V
+            A1 = self.A[i] + A1 * self.alpha
+            A2 = x.view(N, C * T, V)
+            z = self.conv_d[i](torch.matmul(A2, A1).view(N, C, T, V)) # N C T V
+            out.append(z)
+        
+        out = torch.stack(out, dim=2)
+        y = self.aha(out)
+
+        y = self.relu(self.bn(y) + self.down(x))
+        return y
 
 class CTRGC(nn.Module):
     def __init__(self, in_channels, out_channels, rel_reduction=8):
