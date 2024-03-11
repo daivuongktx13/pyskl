@@ -223,6 +223,7 @@ class unit_aagcnconv(nn.Module):
             self.conv_b.append(nn.Conv2d(in_channels, inter_channels, 1))
 
         self.aggregate = nn.Conv2d(out_channels * self.num_subset, out_channels, kernel_size=1)
+        # self.aggregate2 = nn.Conv2d(out_channels, out_channels, kernel_size=1)
 
         self.down = lambda x: x
         if in_channels != out_channels:
@@ -262,6 +263,7 @@ class unit_aagcnconv(nn.Module):
         
         out = torch.cat(out, dim=1)
         y = self.aggregate(out)
+        # y = self.aggregate2(y)
 
         y = self.relu(self.bn(y) + self.down(x))
         return y

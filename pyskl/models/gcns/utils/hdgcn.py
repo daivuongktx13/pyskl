@@ -82,7 +82,7 @@ class AHA(nn.Module):
         x_t = x.max(dim=-2, keepdim=False)[0]
         x_t = self.conv_down(x_t)
 
-        x_sampled = x_t.max(dim = -1).values
+        x_sampled = x_t.mean(dim = -1)
         
         att = self.edge_conv(x_sampled, dim=3)
         att = self.aggregate(att).view(N, C, L, 1, 1)

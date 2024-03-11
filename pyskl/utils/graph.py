@@ -172,3 +172,8 @@ class Graph:
     def random(self):
         num_node = self.num_node * self.nx_node
         return np.random.randn(self.num_filter, num_node, num_node) * self.init_std + self.init_off
+
+    def spatialrandom(self):
+        spatial = self.spatial()
+        random = self.random()
+        return np.concatenate((spatial, random), axis = 0)
