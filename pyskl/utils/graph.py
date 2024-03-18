@@ -111,7 +111,14 @@ class Graph:
                 (14, 13), (15, 14), (16, 15), (17, 1), (18, 17), (19, 18),
                 (20, 19), (22, 8), (23, 8), (24, 12), (25, 12)
             ]
+            neighbor_base2 = [
+                (1, 21), (17, 2), (18, 1), (19, 17), (20, 18),
+                (13, 2), (14, 1), (15, 13), (16, 14),
+                (4, 21), (10, 21), (11, 9), (12, 10), (25, 11), (24, 11),
+                (6, 21), (7, 5), (8, 6), (22, 7), (23, 7)
+            ]
             self.inward = [(i - 1, j - 1) for (i, j) in neighbor_base]
+            self.inward2 = [(i - 1, j - 1) for (i, j) in neighbor_base2]
             self.center = 21 - 1
         elif layout == 'coco':
             self.num_node = 17
@@ -133,7 +140,9 @@ class Graph:
             raise ValueError(f'Do Not Exist This Layout: {layout}')
         self.self_link = [(i, i) for i in range(self.num_node)]
         self.outward = [(j, i) for (i, j) in self.inward]
+        self.outward2 = [(j, i) for (i, j) in self.inward2]
         self.neighbor = self.inward + self.outward
+        self.neighbor2 = self.inward2 + self.outward2
 
     def stgcn_spatial(self):
         adj = np.zeros((self.num_node, self.num_node))
@@ -164,6 +173,15 @@ class Graph:
         Out = normalize_digraph(edge2mat(self.outward, self.num_node))
         A = np.stack((Iden, In, Out))
         return A
+      
+    def spatial2(self):
+        Iden = edge2mat(self.self_link, self.num_node)
+        In = normalize_digraph(edge2mat(self.inward, self.num_node))
+        In2 = normalize_digraph(edge2mat(self.inward2, self.num_node))
+        Out = normalize_digraph(edge2mat(self.outward, self.num_node))
+        Out2 = normalize_digraph(edge2mat(self.outward2, self.num_node))
+        A = np.stack((Iden, In, Out, In2, Out2))
+        return A
 
     def binary_adj(self):
         A = edge2mat(self.inward + self.outward, self.num_node)
@@ -175,5 +193,10 @@ class Graph:
 
     def spatialrandom(self):
         spatial = self.spatial()
+        random = self.random()
+        return np.concatenate((spatial, random), axis = 0)
+
+    def spatial2random(self):
+        spatial = self.spatial2()
         random = self.random()
         return np.concatenate((spatial, random), axis = 0)

@@ -20,9 +20,14 @@ class AAGCNBlock(nn.Module):
         tcn_type = tcn_kwargs.pop('type', 'unit_tcn')
         assert tcn_type in ['unit_tcn', 'mstcn']
         gcn_type = gcn_kwargs.pop('type', 'unit_aagcn')
-        assert gcn_type in ['unit_aagcn']
+        assert gcn_type in ['unit_aagcn', 'unit_aagcnconv', 'unit_aagcn_aha']
 
-        self.gcn = unit_aagcn(in_channels, out_channels, A, **gcn_kwargs)
+        if gcn_type == 'unit_aagcn':
+            self.gcn = unit_aagcn(in_channels, out_channels, A, **gcn_kwargs)
+        elif gcn_type == 'unit_aagcnconv':
+            self.gcn = unit_aagcnconv(in_channels, out_channels, A, **gcn_kwargs)
+        elif gcn_type == 'unit_aagcn_aha':
+            self.gcn = unit_aagcn_aha(in_channels, out_channels, A, **gcn_kwargs)
 
         if tcn_type == 'unit_tcn':
             self.tcn = unit_tcn(out_channels, out_channels, 9, stride=stride, **tcn_kwargs)
