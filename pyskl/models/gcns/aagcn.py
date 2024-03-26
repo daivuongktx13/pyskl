@@ -5,7 +5,7 @@ from mmcv.runner import load_checkpoint
 
 from ...utils import Graph, cache_checkpoint
 from ..builder import BACKBONES
-from .utils import bn_init, mstcn, unit_aagcn, unit_tcn, unit_aagcnconv, unit_aagcn_aha
+from .utils import bn_init, mstcn, unit_aagcn, unit_tcn, unit_aagcnconv, unit_aagcn_aha, unit_aagcnconv2
 
 
 class AAGCNBlock(nn.Module):
@@ -20,7 +20,7 @@ class AAGCNBlock(nn.Module):
         tcn_type = tcn_kwargs.pop('type', 'unit_tcn')
         assert tcn_type in ['unit_tcn', 'mstcn']
         gcn_type = gcn_kwargs.pop('type', 'unit_aagcn')
-        assert gcn_type in ['unit_aagcn', 'unit_aagcnconv', 'unit_aagcn_aha']
+        assert gcn_type in ['unit_aagcn', 'unit_aagcnconv', 'unit_aagcn_aha', 'unit_aagcnconv2']
 
         if gcn_type == 'unit_aagcn':
             self.gcn = unit_aagcn(in_channels, out_channels, A, **gcn_kwargs)
@@ -28,6 +28,8 @@ class AAGCNBlock(nn.Module):
             self.gcn = unit_aagcnconv(in_channels, out_channels, A, **gcn_kwargs)
         elif gcn_type == 'unit_aagcn_aha':
             self.gcn = unit_aagcn_aha(in_channels, out_channels, A, **gcn_kwargs)
+        elif gcn_type == 'unit_aagcnconv2':
+            self.gcn = unit_aagcnconv2(in_channels, out_channels, A, **gcn_kwargs)
 
         if tcn_type == 'unit_tcn':
             self.tcn = unit_tcn(out_channels, out_channels, 9, stride=stride, **tcn_kwargs)
@@ -47,7 +49,8 @@ class AAGCNBlock(nn.Module):
         self.gcn.init_weights()
 
     def forward(self, x):
-        return self.relu(self.tcn(self.gcn(x)) + self.residual(x))
+        gcn_forward, graph = self.gcn(x)
+        return self.relu(self.tcn(gcn_forward) + self.residual(x)), graph
 
 
 @BACKBONES.register_module()
@@ -62,6 +65,7 @@ class AAGCN(nn.Module):
                  inflate_stages=[5, 8],
                  down_stages=[5, 8],
                  pretrained=None,
+                 return_graph=False,
                  **kwargs):
         super().__init__()
 
@@ -78,6 +82,7 @@ class AAGCN(nn.Module):
         self.num_stages = num_stages
         self.inflate_stages = inflate_stages
         self.down_stages = down_stages
+        self.return_graph = return_graph
 
         if self.data_bn_type == 'MVC':
             self.data_bn = nn.BatchNorm1d(num_person * in_channels * A.size(1))
@@ -129,7 +134,11 @@ class AAGCN(nn.Module):
         x = x.view(N, M, V, C, T).permute(0, 1, 3, 4, 2).contiguous().view(N * M, C, T, V)
 
         for i in range(self.num_stages):
-            x = self.gcn[i](x)
+            x, graph = self.gcn[i](x)
 
         x = x.reshape((N, M) + x.shape[1:])
-        return x
+        if self.return_graph:
+            graph = graph.view(N, M, -1, V, V).mean(1).view(N, -1)
+            return x, graph
+        else:
+            return x
