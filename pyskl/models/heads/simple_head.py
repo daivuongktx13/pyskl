@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from mmcv.cnn import normal_init
+from mmcv import dump
 
 from ..builder import HEADS
 from .base import BaseHead
@@ -42,9 +43,19 @@ class SimpleHead(BaseHead):
         self.in_c = in_channels
         self.fc_cls = nn.Linear(self.in_c, num_classes)
 
+        self.zs = []
+        self.count = 0
+
     def init_weights(self):
         """Initiate the parameters from scratch."""
         normal_init(self.fc_cls, std=self.init_std)
+
+    def record(self, zs, labels):
+        data = [(z, labels) for z in zs]
+        self.zs.extend(data)
+        self.count += 1
+        if self.count % 2000 == 0:
+            dump(self.zs, file='work_dirs/zs/zs_5_gcl.pkl')
 
     def forward(self, x):
         """Defines the computation performed at every call.
@@ -87,11 +98,12 @@ class SimpleHead(BaseHead):
                 x = x.mean(dim=1)
 
         assert x.shape[1] == self.in_c
+        zs = x
         if self.dropout is not None:
             x = self.dropout(x)
 
         cls_score = self.fc_cls(x)
-        return cls_score
+        return cls_score, zs
 
 
 @HEADS.register_module()

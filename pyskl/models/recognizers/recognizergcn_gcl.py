@@ -17,16 +17,17 @@ class RecognizerGCNGCL(BaseRecognizer):
 
         losses = dict()
         x, graph = self.extract_feat(keypoint)
-        cls_score = self.cls_head(x)
+        cls_score, _ = self.cls_head(x)
         gt_label = label.squeeze(-1)
         loss = self.cls_head.loss(cls_score, gt_label)
-        gcl_loss = self.cls_head.gcl_loss(graph, gt_label)
-        loss['loss_gcl'] = gcl_loss
+        instance_loss, semantic_loss = self.cls_head.gcl_loss(graph, gt_label)
+        loss['loss_instance'] = instance_loss
+        loss['semantic_loss'] = semantic_loss
         losses.update(loss)
 
         return losses
 
-    def forward_test(self, keypoint, **kwargs):
+    def forward_test(self, keypoint, label, **kwargs):
         """Defines the computation performed at every call when evaluation and
         testing."""
         assert self.with_cls_head or self.feat_ext
@@ -64,8 +65,12 @@ class RecognizerGCNGCL(BaseRecognizer):
                 x = x[None]
             return x.data.cpu().numpy().astype(np.float16)
 
-        cls_score = self.cls_head(x)
+        cls_score, zs = self.cls_head(x)
+        gt_label = label.squeeze(-1)
         cls_score = cls_score.reshape(bs, nc, cls_score.shape[-1])
+        zs = zs.cpu().detach().numpy().tolist()
+        labels = gt_label.cpu().detach().numpy().tolist()
+        self.cls_head.record(zs, labels)
         # harmless patch
         if 'average_clips' not in self.test_cfg:
             self.test_cfg['average_clips'] = 'prob'
@@ -84,7 +89,7 @@ class RecognizerGCNGCL(BaseRecognizer):
                 raise ValueError('Label should not be None.')
             return self.forward_train(keypoint, label, **kwargs)
 
-        return self.forward_test(keypoint, **kwargs)
+        return self.forward_test(keypoint, label, **kwargs)
 
     def extract_feat(self, keypoint):
         """Extract features through a backbone.

@@ -333,8 +333,8 @@ class unit_aagcnconv2(nn.Module):
             A1 = self.tan(torch.matmul(A1, A2) / A1.size(-1))  # N V V
             graph_list.append(A1)
             A1 = self.A[i] + A1 * self.alpha
-            A2 = self.conv_d[i](x).view(N, C * T, V)
-            z = torch.matmul(A2, A1).view(N, C, T, V) # N C T V
+            A2 = self.conv_d[i](x).view(N, -1, V)
+            z = torch.matmul(A2, A1).view(N, -1, T, V) # N C T V
             out.append(z)
         
         out = torch.cat(out, dim=1)

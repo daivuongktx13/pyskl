@@ -32,14 +32,14 @@ class InstanceBank(nn.Module):
             torch.zeros(mem_size * class_num), requires_grad=False
             ) 
         self.roundrobin = [0] * class_num
-        self.bank_label = torch.arange(class_num).repeat(mem_size)
+        self.bank_label = torch.arange(class_num).repeat_interleave(mem_size)
         self.cross_entropy = nn.CrossEntropyLoss()
 
     def get_enqueue_indexs(self, label):
         indies = []
         label = label.cpu().detach().tolist()
         for i in label:
-            self.roundrobin[i] = self.roundrobin[i] + 1 if self.roundrobin[i] < self.class_num - 1 else 0
+            self.roundrobin[i] = self.roundrobin[i] + 1 if self.roundrobin[i] < self.mem_size - 1 else 0
             indies.append(self.roundrobin[i] + i * self.mem_size)
         return indies
 
@@ -161,7 +161,7 @@ class InfoNCE(nn.Module):
         f_normed = f / f_norm
         instance_loss = self.instanceLoss(f_normed, label)
         semantic_loss = self.semanticLoss(f_normed, label)
-        return instance_loss + semantic_loss
+        return instance_loss, semantic_loss
 
 
 
