@@ -21,8 +21,8 @@ class RecognizerGCNGCL(BaseRecognizer):
         gt_label = label.squeeze(-1)
         loss = self.cls_head.loss(cls_score, gt_label)
         instance_loss, semantic_loss = self.cls_head.gcl_loss(graph, gt_label)
-        loss['loss_instance'] = instance_loss
-        loss['semantic_loss'] = semantic_loss
+        loss['loss_instance'] = 0.25 * instance_loss
+        loss['semantic_loss'] = 0.25 * semantic_loss
         losses.update(loss)
 
         return losses

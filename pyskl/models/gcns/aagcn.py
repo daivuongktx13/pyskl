@@ -5,7 +5,7 @@ from mmcv.runner import load_checkpoint
 
 from ...utils import Graph, cache_checkpoint
 from ..builder import BACKBONES
-from .utils import bn_init, mstcn, unit_aagcn, unit_tcn, unit_aagcnconv, unit_aagcn_aha, unit_aagcnconv2
+from .utils import bn_init, mstcn, unit_aagcn, unit_tcn, unit_aagcnconv, unit_aagcn_aha, unit_aagcnconv2, MyDevLSTM, devmstcn
 
 
 class AAGCNBlock(nn.Module):
@@ -18,7 +18,7 @@ class AAGCNBlock(nn.Module):
         assert len(kwargs) == 0, f'Invalid arguments: {kwargs}'
 
         tcn_type = tcn_kwargs.pop('type', 'unit_tcn')
-        assert tcn_type in ['unit_tcn', 'mstcn']
+        assert tcn_type in ['unit_tcn', 'mstcn', 'devlstm', 'mydevlstm', 'devmstcn']
         gcn_type = gcn_kwargs.pop('type', 'unit_aagcn')
         assert gcn_type in ['unit_aagcn', 'unit_aagcnconv', 'unit_aagcn_aha', 'unit_aagcnconv2']
 
@@ -35,6 +35,12 @@ class AAGCNBlock(nn.Module):
             self.tcn = unit_tcn(out_channels, out_channels, 9, stride=stride, **tcn_kwargs)
         elif tcn_type == 'mstcn':
             self.tcn = mstcn(out_channels, out_channels, stride=stride, **tcn_kwargs)
+        elif tcn_type == 'devlstm':
+            self.tcn = DevLSTM(out_channels, out_channels, stride=stride, **tcn_kwargs)
+        elif tcn_type == 'mydevlstm':
+            self.tcn = MyDevLSTM(out_channels, out_channels, stride=stride, **tcn_kwargs)
+        elif tcn_type == 'devmstcn':
+            self.tcn = devmstcn(out_channels, out_channels, stride=stride, **tcn_kwargs)
         self.relu = nn.ReLU()
 
         if not residual:
