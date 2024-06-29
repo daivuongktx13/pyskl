@@ -201,100 +201,100 @@ class dgmstcn(nn.Module):
         out = self.bn(out)
         return self.drop(out)
 
-# class DevLSTM(nn.Module):
+class DevLSTM(nn.Module):
 
-#     def __init__(self,
-#                  in_channels,
-#                  out_channels,
-#                  mid_channels=None,
-#                  dev_lie = 'se',
-#                  lie_hidden_size=10,
-#                  dev_dilation = [1, 2],
-#                  dropout=0.,
-#                  stride=1):
-#         super().__init__()
-#         self.in_channels = in_channels
-#         self.out_channels = out_channels
-#         self.dev_kernel = 2 if stride == 1 else 3
-#         self.dev_lie = se if dev_lie == 'se' else so
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 mid_channels=None,
+                 dev_lie = 'se',
+                 lie_hidden_size=10,
+                 dev_dilation = [1, 2],
+                 dropout=0.,
+                 stride=1):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.dev_kernel = 2 if stride == 1 else 3
+        self.dev_lie = se if dev_lie == 'se' else so
 
-#         num_dev_branch = len(dev_dilation)
+        num_dev_branch = len(dev_dilation)
 
-#         self.dev_layers = []
-#         use_sp = True
-#         for i in range(num_dev_branch):
-#             if stride == 1 and i != 0:
-#                 use_sp = False
-#                 num_dev_branch = 1
+        self.dev_layers = []
+        use_sp = True
+        for i in range(num_dev_branch):
+            if stride == 1 and i != 0:
+                use_sp = False
+                num_dev_branch = 1
 
-#             self.dev_layers.append(dilation_dev(
-#                     dilation=dev_dilation[i],
-#                     h_size=lie_hidden_size,
-#                     param=self.dev_lie,
-#                     input_channel=out_channels,
-#                     kernel_size=self.dev_kernel,
-#                     stride=stride,
-#                     return_sequence=False,
-#                     use_sp=use_sp))
+            self.dev_layers.append(dilation_dev(
+                    dilation=dev_dilation[i],
+                    h_size=lie_hidden_size,
+                    param=self.dev_lie,
+                    input_channel=out_channels,
+                    kernel_size=self.dev_kernel,
+                    stride=stride,
+                    return_sequence=False,
+                    use_sp=use_sp))
 
-#         channel_num = int(num_dev_branch * out_channels + len(dev_dilation) * lie_hidden_size * lie_hidden_size) 
+        channel_num = int(num_dev_branch * out_channels + len(dev_dilation) * lie_hidden_size * lie_hidden_size) 
 
-#         self.dev_layers = nn.ModuleList(self.dev_layers)
+        self.dev_layers = nn.ModuleList(self.dev_layers)
 
-#         self.lstm = nn.LSTM(
-#             input_size=channel_num,
-#             hidden_size=out_channels,
-#             num_layers=1,
-#             batch_first=True,
-#             bidirectional=False
-#         )
+        self.lstm = nn.LSTM(
+            input_size=channel_num,
+            hidden_size=out_channels,
+            num_layers=1,
+            batch_first=True,
+            bidirectional=False
+        )
 
-#         self.pooling = nn.Sequential(
-#             nn.Conv2d(out_channels, out_channels, kernel_size=1, padding=0),
-#             nn.BatchNorm2d(out_channels),
-#             nn.ReLU(inplace=True),
-#             nn.MaxPool2d(kernel_size=(3,1), stride=(stride,1), padding=(1,0)),
-#             nn.BatchNorm2d(out_channels)  
-#         )
+        self.pooling = nn.Sequential(
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, padding=0),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=(3,1), stride=(stride,1), padding=(1,0)),
+            nn.BatchNorm2d(out_channels)  
+        )
 
-#         self.conv = nn.Sequential(nn.Conv2d(out_channels, int(out_channels/2), kernel_size=1, padding=0),
-#             nn.BatchNorm2d(int(out_channels/2)),
-#             nn.ReLU(inplace=True),
-#             nn.Conv2d(int(out_channels/2), (out_channels), 
-#                 kernel_size=(5, 1),
-#                 padding=(2, 0),
-#                 stride=(stride, 1)),
-#             nn.BatchNorm2d(int(out_channels))
-#         )
+        self.conv = nn.Sequential(nn.Conv2d(out_channels, int(out_channels/2), kernel_size=1, padding=0),
+            nn.BatchNorm2d(int(out_channels/2)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(int(out_channels/2), (out_channels), 
+                kernel_size=(5, 1),
+                padding=(2, 0),
+                stride=(stride, 1)),
+            nn.BatchNorm2d(int(out_channels))
+        )
 
-#         self.bn = nn.BatchNorm1d(out_channels)
-#         self.gelu = torch.nn.GELU()
+        self.bn = nn.BatchNorm1d(out_channels)
+        self.gelu = torch.nn.GELU()
 
-#     def forward(self, x):
-#         N_M, C, T, V = x.shape
+    def forward(self, x):
+        N_M, C, T, V = x.shape
 
-#         x_pooling = self.pooling(x)
-#         x_conv = self.conv(x)
+        x_pooling = self.pooling(x)
+        x_conv = self.conv(x)
 
-#         x = x.permute(0, 3, 2, 1).contiguous().view(N_M * V, T, self.out_channels).contiguous()
+        x = x.permute(0, 3, 2, 1).contiguous().view(N_M * V, T, self.out_channels).contiguous()
 
-#         x_dev = []
-#         for dev_layer in self.dev_layers:
-#             x_dev.append(dev_layer(x).type_as(x))
-#         x_dev = torch.cat(x_dev, axis=-1)
+        x_dev = []
+        for dev_layer in self.dev_layers:
+            x_dev.append(dev_layer(x).type_as(x))
+        x_dev = torch.cat(x_dev, axis=-1)
 
-#         _, T_segments, _ = x_dev.shape
+        _, T_segments, _ = x_dev.shape
 
-#         x, _ = self.lstm(x_dev)
-#         x = self.bn(x.permute(0, 2, 1).contiguous()).permute(0, 2, 1).contiguous()
-#         x = x.view(N_M, V, T_segments, self.out_channels).permute(0, 3, 2, 1).contiguous()
+        x, _ = self.lstm(x_dev)
+        x = self.bn(x.permute(0, 2, 1).contiguous()).permute(0, 2, 1).contiguous()
+        x = x.view(N_M, V, T_segments, self.out_channels).permute(0, 3, 2, 1).contiguous()
 
-#         x = x_pooling + x_conv + x 
-#         out = self.gelu(x)
-#         return out
+        x = x_pooling + x_conv + x 
+        out = self.gelu(x)
+        return out
     
-#     def init_weights(self):
-#         pass
+    def init_weights(self):
+        pass
 
 class MyDevLSTM(nn.Module):
 

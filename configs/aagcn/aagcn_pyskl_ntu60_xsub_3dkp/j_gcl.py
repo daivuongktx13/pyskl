@@ -1,19 +1,20 @@
 model = dict(
-    type='RecognizerGCN',
+    type='RecognizerGCNGCL',
     backbone=dict(
 		type='AAGCN',
         tcn_type='mstcn',
         gcn_type='unit_aagcnconv2',
+        return_graph=True,
         gcn_attention=False,
-        graph_cfg=dict(layout='nturgb+d', mode='random', num_filter = 5, init_off=0.04, init_std=0.02)),
-    cls_head=dict(type='GCNHead', num_classes=60, in_channels=256))
+        graph_cfg=dict(layout='nturgb+d', mode='spatialrandom', num_filter = 5, init_off=0.04, init_std=0.02)),
+    cls_head=dict(type='GCNGCLHead', num_classes=60, in_channels=256, 
+        gcl_in_channels=8 * 25 * 25,
+        gcl_warmup_steps = 1000))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
 train_pipeline = [
     dict(type='PreNormalize3D'),
-    dict(type='RandomScale', scale=0.1),
-    dict(type='RandomRot'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
     dict(type='UniformSample', clip_len=100),
     dict(type='PoseDecode'),
@@ -62,4 +63,4 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/aagcn/aagcn_pyskl_ntu60_xsub_3dkp/j_0.01_random5_convnew_sa2'
+work_dir = './work_dirs/aagcn/aagcn_pyskl_ntu60_xsub_3dkp/j'
