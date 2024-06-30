@@ -2,13 +2,18 @@ model = dict(
     type='RecognizerGCN',
     backbone=dict(
 		type='AAGCN',
-        graph_cfg=dict(layout='nturgb+d', mode='spatial')),
+        tcn_type='mstcn',
+        gcn_type='unit_aagcnconv2',
+        gcn_attention=False,
+        graph_cfg=dict(layout='nturgb+d', mode='random', num_filter = 5, init_off=0.04, init_std=0.02)),
     cls_head=dict(type='GCNHead', num_classes=60, in_channels=256))
 
 dataset_type = 'PoseDataset'
 ann_file = 'data/nturgbd/ntu60_3danno.pkl'
 train_pipeline = [
     dict(type='PreNormalize3D'),
+    dict(type='RandomScale', scale=0.1),
+    dict(type='RandomRot'),
     dict(type='GenSkeFeat', dataset='nturgb+d', feats=['j']),
     dict(type='UniformSample', clip_len=100),
     dict(type='PoseDecode'),
@@ -46,7 +51,7 @@ data = dict(
     test=dict(type=dataset_type, ann_file=ann_file, pipeline=test_pipeline, split='xsub_val'))
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0005, nesterov=True)
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005, nesterov=True)
 optimizer_config = dict(grad_clip=None)
 # learning policy
 lr_config = dict(policy='CosineAnnealing', min_lr=0, by_epoch=False)
@@ -57,4 +62,4 @@ log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 
 # runtime settings
 log_level = 'INFO'
-work_dir = './work_dirs/aagcn/aagcn_pyskl_ntu60_xsub_3dkp/j'
+work_dir = './work_dirs/aagcn/aagcn_pyskl_ntu60_xsub_3dkp/j_0.01_random5_convnew_sa2'

@@ -39,7 +39,7 @@ def parse_args():
         '--eval',
         type=str,
         nargs='+',
-        default=['top_k_accuracy', 'mean_class_accuracy'],
+        default=['top_k_accuracy', 'mean_class_accuracy', 'confusion_matrix'],
         help='evaluation metrics, which depends on the dataset, e.g.,'
         ' "top_k_accuracy", "mean_class_accuracy" for video dataset')
     parser.add_argument(
@@ -169,10 +169,13 @@ def main():
     rank, _ = get_dist_info()
     if rank == 0:
         print(f'\nwriting results to {out}')
-        dataset.dump_results(outputs, out=out)
+        # dataset.dump_results(outputs, out=out)
         if eval_cfg:
             eval_res = dataset.evaluate(outputs, **eval_cfg)
             for name, val in eval_res.items():
+                if name == 'confusion_matrix':
+                    dataset.dump_results(val, out=out)
+                    continue
                 print(f'{name}: {val:.04f}')
 
     dist.barrier()

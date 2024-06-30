@@ -17,14 +17,17 @@ class RecognizerGCN(BaseRecognizer):
 
         losses = dict()
         x = self.extract_feat(keypoint)
-        cls_score = self.cls_head(x)
+        cls_score, zs = self.cls_head(x)
         gt_label = label.squeeze(-1)
+        # zs = zs.cpu().detach().numpy().tolist()
+        # labels = gt_label.cpu().detach().numpy().tolist()
+        # self.cls_head.record(zs, labels)
         loss = self.cls_head.loss(cls_score, gt_label)
         losses.update(loss)
 
         return losses
 
-    def forward_test(self, keypoint, **kwargs):
+    def forward_test(self, keypoint, label, **kwargs):
         """Defines the computation performed at every call when evaluation and
         testing."""
         assert self.with_cls_head or self.feat_ext
@@ -62,8 +65,12 @@ class RecognizerGCN(BaseRecognizer):
                 x = x[None]
             return x.data.cpu().numpy().astype(np.float16)
 
-        cls_score = self.cls_head(x)
+        cls_score, zs = self.cls_head(x)
+        gt_label = label.squeeze(-1)
         cls_score = cls_score.reshape(bs, nc, cls_score.shape[-1])
+        zs = zs.cpu().detach().numpy().tolist()
+        labels = gt_label.cpu().detach().numpy().tolist()
+        self.cls_head.record(zs, labels)
         # harmless patch
         if 'average_clips' not in self.test_cfg:
             self.test_cfg['average_clips'] = 'prob'
@@ -82,7 +89,7 @@ class RecognizerGCN(BaseRecognizer):
                 raise ValueError('Label should not be None.')
             return self.forward_train(keypoint, label, **kwargs)
 
-        return self.forward_test(keypoint, **kwargs)
+        return self.forward_test(keypoint, label, **kwargs)
 
     def extract_feat(self, keypoint):
         """Extract features through a backbone.
